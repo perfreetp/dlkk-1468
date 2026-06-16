@@ -14,45 +14,145 @@ import {
   Calendar,
   ChevronDown,
   ChevronUp,
+  Check,
+  HelpCircle,
 } from 'lucide-react';
 import { useProjectStore } from '@/store/projectStore';
 import { prerequisites } from '@/data/prerequisites';
+import { parseProjectText } from '@/utils/format';
+
+type FieldStatus = 'parsed' | 'manual' | 'empty';
 
 export default function ProjectOverview() {
   const { currentProject, setCurrentProject } = useProjectStore();
   const [inputText, setInputText] = useState('');
   const [isParsing, setIsParsing] = useState(false);
   const [showPrereqDetail, setShowPrereqDetail] = useState<string | null>(null);
+  const [parseResult, setParseResult] = useState<Record<string, FieldStatus>>({});
+  const [showParseHint, setShowParseHint] = useState(false);
 
-  const sampleText = `滨江花园住宅小区项目
-建设单位：城市建设发展有限公司
-项目地址：滨江新区江南大道88号
-总建筑面积：85600平方米
-建筑层数：地上28层，地下2层
-开工日期：2024年3月15日
-计划竣工日期：2025年12月30日`;
+  const sampleText = `阳光苑住宅小区项目
+建设单位：安居房地产开发有限公司
+项目地址：高新区科技大道168号
+总建筑面积：62,500平方米
+建筑层数：地上24层，地下1层
+开工日期：2024年1月20日
+计划竣工日期：2025年10月31日`;
 
   const handleSmartParse = () => {
+    if (!inputText.trim()) return;
+
     setIsParsing(true);
+    setShowParseHint(true);
+
     setTimeout(() => {
-      setCurrentProject({
-        id: 'proj-001',
-        name: '滨江花园住宅小区项目',
-        type: 'building',
-        category: '住宅工程',
-        address: '滨江新区江南大道88号',
-        area: 85600,
-        floors: 28,
-        builder: '城市建设发展有限公司',
-        startDate: '2024-03-15',
-        plannedEndDate: '2025-12-30',
-      });
+      const parsed = parseProjectText(inputText);
+      const statusMap: Record<string, FieldStatus> = {};
+
+      const newProject = {
+        id: currentProject?.id || `proj-${Date.now()}`,
+        name: '',
+        type: currentProject?.type || 'building',
+        category: currentProject?.category || '住宅工程',
+        address: '',
+        area: 0,
+        floors: 0,
+        builder: '',
+        startDate: '',
+        plannedEndDate: '',
+      };
+
+      if (parsed.name) {
+        newProject.name = parsed.name;
+        statusMap.name = 'parsed';
+      } else {
+        statusMap.name = currentProject?.name ? 'manual' : 'empty';
+        newProject.name = currentProject?.name || '';
+      }
+
+      if (parsed.builder) {
+        newProject.builder = parsed.builder;
+        statusMap.builder = 'parsed';
+      } else {
+        statusMap.builder = currentProject?.builder ? 'manual' : 'empty';
+        newProject.builder = currentProject?.builder || '';
+      }
+
+      if (parsed.address) {
+        newProject.address = parsed.address;
+        statusMap.address = 'parsed';
+      } else {
+        statusMap.address = currentProject?.address ? 'manual' : 'empty';
+        newProject.address = currentProject?.address || '';
+      }
+
+      if (parsed.area !== undefined) {
+        newProject.area = parsed.area;
+        statusMap.area = 'parsed';
+      } else {
+        statusMap.area = currentProject?.area ? 'manual' : 'empty';
+        newProject.area = currentProject?.area || 0;
+      }
+
+      if (parsed.floors !== undefined) {
+        newProject.floors = parsed.floors;
+        statusMap.floors = 'parsed';
+      } else {
+        statusMap.floors = currentProject?.floors ? 'manual' : 'empty';
+        newProject.floors = currentProject?.floors || 0;
+      }
+
+      if (parsed.startDate) {
+        newProject.startDate = parsed.startDate;
+        statusMap.startDate = 'parsed';
+      } else {
+        statusMap.startDate = currentProject?.startDate ? 'manual' : 'empty';
+        newProject.startDate = currentProject?.startDate || '';
+      }
+
+      if (parsed.plannedEndDate) {
+        newProject.plannedEndDate = parsed.plannedEndDate;
+        statusMap.plannedEndDate = 'parsed';
+      } else {
+        statusMap.plannedEndDate = currentProject?.plannedEndDate ? 'manual' : 'empty';
+        newProject.plannedEndDate = currentProject?.plannedEndDate || '';
+      }
+
+      setCurrentProject(newProject);
+      setParseResult(statusMap);
       setIsParsing(false);
-    }, 1500);
+    }, 1200);
   };
 
   const loadSample = () => {
     setInputText(sampleText);
+  };
+
+  const handleFieldChange = (field: keyof typeof currentProject, value: any) => {
+    if (!currentProject) return;
+    setCurrentProject({ ...currentProject, [field]: value });
+    setParseResult((prev) => ({ ...prev, [field]: 'manual' }));
+  };
+
+  const getFieldBadge = (field: string) => {
+    const status = parseResult[field];
+    if (status === 'parsed') {
+      return (
+        <span className="ml-2 inline-flex items-center gap-1 px-1.5 py-0.5 text-xs bg-emerald-100 text-emerald-700 rounded">
+          <Check className="w-3 h-3" />
+          智能识别
+        </span>
+      );
+    }
+    if (status === 'empty') {
+      return (
+        <span className="ml-2 inline-flex items-center gap-1 px-1.5 py-0.5 text-xs bg-red-100 text-red-600 rounded">
+          <HelpCircle className="w-3 h-3" />
+          需补全
+        </span>
+      );
+    }
+    return null;
   };
 
   const getPrereqStatusStyle = (status: string) => {
@@ -95,10 +195,25 @@ export default function ProjectOverview() {
       <div className="grid grid-cols-3 gap-6">
         <div className="col-span-2 space-y-6">
           <div className="bg-white rounded-2xl border border-slate-200 p-6">
-            <h2 className="text-lg font-bold text-slate-800 mb-4 flex items-center gap-2">
-              <Sparkles className="w-5 h-5 text-blue-500" />
-              智能识别
-            </h2>
+            <div className="flex items-center justify-between mb-4">
+              <h2 className="text-lg font-bold text-slate-800 flex items-center gap-2">
+                <Sparkles className="w-5 h-5 text-blue-500" />
+                智能识别
+              </h2>
+              {showParseHint && (
+                <div className="flex items-center gap-3 text-xs">
+                  <span className="flex items-center gap-1 text-emerald-600">
+                    <Check className="w-3 h-3" /> 已识别
+                  </span>
+                  <span className="flex items-center gap-1 text-slate-500">
+                    <Info className="w-3 h-3" /> 可手动修改
+                  </span>
+                  <span className="flex items-center gap-1 text-red-600">
+                    <HelpCircle className="w-3 h-3" /> 需补全
+                  </span>
+                </div>
+              )}
+            </div>
             <p className="text-sm text-slate-500 mb-4">
               粘贴工程概况文字或上传文档，系统自动识别并填写项目信息
             </p>
@@ -107,8 +222,8 @@ export default function ProjectOverview() {
               <textarea
                 value={inputText}
                 onChange={(e) => setInputText(e.target.value)}
-                placeholder="请粘贴或输入工程概况文字内容..."
-                className="w-full h-40 p-4 border border-slate-200 rounded-xl text-sm resize-none focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-400 transition-all"
+                placeholder={`请粘贴或输入工程概况文字内容...\n\n例如：\n项目名称：阳光花园住宅小区\n建设单位：安居房地产开发有限公司\n项目地址：高新区科技大道168号\n建筑面积：62,500平方米\n建筑层数：地上24层，地下1层\n开工日期：2024年1月20日\n计划竣工日期：2025年10月31日`}
+                className="w-full h-48 p-4 border border-slate-200 rounded-xl text-sm resize-none focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-400 transition-all"
               />
               {!inputText && (
                 <button
@@ -129,7 +244,7 @@ export default function ProjectOverview() {
                 {isParsing ? (
                   <>
                     <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
-                    正在智能识别...
+                    正在智能识别中...
                   </>
                 ) : (
                   <>
@@ -143,6 +258,16 @@ export default function ProjectOverview() {
                 上传文档
               </button>
             </div>
+
+            {showParseHint && (
+              <div className="mt-4 p-3 bg-blue-50 border border-blue-200 rounded-xl text-sm text-blue-700">
+                <span className="font-medium">识别结果：</span>
+                {Object.values(parseResult).filter((s) => s === 'parsed').length} 项
+                字段已自动识别，
+                {Object.values(parseResult).filter((s) => s === 'empty').length} 项
+                需要手动补全，其他字段可根据需要修改
+              </div>
+            )}
           </div>
 
           <div className="bg-white rounded-2xl border border-slate-200 p-6">
@@ -156,16 +281,12 @@ export default function ProjectOverview() {
                 <label className="text-sm text-slate-500 mb-2 block">
                   项目名称
                   <span className="text-red-500 ml-1">*</span>
+                  {getFieldBadge('name')}
                 </label>
                 <input
                   type="text"
                   value={currentProject?.name || ''}
-                  onChange={(e) =>
-                    setCurrentProject({
-                      ...currentProject!,
-                      name: e.target.value,
-                    })
-                  }
+                  onChange={(e) => handleFieldChange('name', e.target.value)}
                   className="w-full px-4 py-2.5 border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-400 transition-all"
                 />
               </div>
@@ -174,25 +295,22 @@ export default function ProjectOverview() {
                 <label className="text-sm text-slate-500 mb-2 block">
                   建设单位
                   <span className="text-red-500 ml-1">*</span>
+                  {getFieldBadge('builder')}
                 </label>
                 <input
                   type="text"
                   value={currentProject?.builder || ''}
-                  onChange={(e) =>
-                    setCurrentProject({
-                      ...currentProject!,
-                      builder: e.target.value,
-                    })
-                  }
+                  onChange={(e) => handleFieldChange('builder', e.target.value)}
                   className="w-full px-4 py-2.5 border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-400 transition-all"
                 />
               </div>
 
-              <div className="relative group">
+              <div className="relative group col-span-2">
                 <label className="text-sm text-slate-500 mb-2 block flex items-center gap-1">
                   <MapPin className="w-3.5 h-3.5" />
                   项目地址
                   <span className="text-red-500 ml-1">*</span>
+                  {getFieldBadge('address')}
                   <span className="ml-1 px-1.5 py-0.5 text-xs bg-orange-100 text-orange-600 rounded font-medium">
                     易错
                   </span>
@@ -200,13 +318,14 @@ export default function ProjectOverview() {
                 <input
                   type="text"
                   value={currentProject?.address || ''}
-                  onChange={(e) =>
-                    setCurrentProject({
-                      ...currentProject!,
-                      address: e.target.value,
-                    })
-                  }
-                  className="w-full px-4 py-2.5 border-2 border-orange-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-orange-500/20 focus:border-orange-500 transition-all bg-orange-50/30"
+                  onChange={(e) => handleFieldChange('address', e.target.value)}
+                  className={`w-full px-4 py-2.5 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-orange-500/20 transition-all ${
+                    parseResult.address === 'parsed'
+                      ? 'border-2 border-emerald-300 bg-emerald-50/30 focus:border-emerald-500'
+                      : parseResult.address === 'empty'
+                      ? 'border-2 border-red-300 bg-red-50/30 focus:border-red-500'
+                      : 'border-2 border-orange-300 bg-orange-50/30 focus:border-orange-500'
+                  }`}
                 />
                 <div className="absolute -top-1 -right-1 opacity-0 group-hover:opacity-100 transition-opacity z-10">
                   <div className="bg-orange-600 text-white text-xs px-2 py-1 rounded shadow-lg whitespace-nowrap">
@@ -220,17 +339,21 @@ export default function ProjectOverview() {
                   <Ruler className="w-3.5 h-3.5" />
                   总建筑面积 (㎡)
                   <span className="text-red-500 ml-1">*</span>
+                  {getFieldBadge('area')}
                 </label>
                 <input
                   type="number"
                   value={currentProject?.area || ''}
                   onChange={(e) =>
-                    setCurrentProject({
-                      ...currentProject!,
-                      area: Number(e.target.value),
-                    })
+                    handleFieldChange('area', Number(e.target.value) || 0)
                   }
-                  className="w-full px-4 py-2.5 border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-400 transition-all"
+                  className={`w-full px-4 py-2.5 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/20 transition-all ${
+                    parseResult.area === 'parsed'
+                      ? 'border-2 border-emerald-300 bg-emerald-50/30 focus:border-emerald-500'
+                      : parseResult.area === 'empty'
+                      ? 'border-2 border-red-300 bg-red-50/30 focus:border-red-500'
+                      : 'border border-slate-200 focus:border-blue-400'
+                  }`}
                 />
               </div>
 
@@ -238,17 +361,19 @@ export default function ProjectOverview() {
                 <label className="text-sm text-slate-500 mb-2 block flex items-center gap-1">
                   <Layers className="w-3.5 h-3.5" />
                   建筑层数
+                  {getFieldBadge('floors')}
                 </label>
                 <input
                   type="number"
                   value={currentProject?.floors || ''}
                   onChange={(e) =>
-                    setCurrentProject({
-                      ...currentProject!,
-                      floors: Number(e.target.value),
-                    })
+                    handleFieldChange('floors', Number(e.target.value) || 0)
                   }
-                  className="w-full px-4 py-2.5 border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-400 transition-all"
+                  className={`w-full px-4 py-2.5 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/20 transition-all ${
+                    parseResult.floors === 'parsed'
+                      ? 'border-2 border-emerald-300 bg-emerald-50/30 focus:border-emerald-500'
+                      : 'border border-slate-200 focus:border-blue-400'
+                  }`}
                 />
               </div>
 
@@ -256,35 +381,37 @@ export default function ProjectOverview() {
                 <label className="text-sm text-slate-500 mb-2 block flex items-center gap-1">
                   <Calendar className="w-3.5 h-3.5" />
                   开工日期
+                  {getFieldBadge('startDate')}
                 </label>
                 <input
                   type="date"
                   value={currentProject?.startDate || ''}
-                  onChange={(e) =>
-                    setCurrentProject({
-                      ...currentProject!,
-                      startDate: e.target.value,
-                    })
-                  }
-                  className="w-full px-4 py-2.5 border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-400 transition-all"
+                  onChange={(e) => handleFieldChange('startDate', e.target.value)}
+                  className={`w-full px-4 py-2.5 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/20 transition-all ${
+                    parseResult.startDate === 'parsed'
+                      ? 'border-2 border-emerald-300 bg-emerald-50/30 focus:border-emerald-500'
+                      : 'border border-slate-200 focus:border-blue-400'
+                  }`}
                 />
               </div>
 
-              <div className="col-span-2">
+              <div>
                 <label className="text-sm text-slate-500 mb-2 block flex items-center gap-1">
                   <Calendar className="w-3.5 h-3.5" />
                   计划竣工日期
+                  {getFieldBadge('plannedEndDate')}
                 </label>
                 <input
                   type="date"
                   value={currentProject?.plannedEndDate || ''}
                   onChange={(e) =>
-                    setCurrentProject({
-                      ...currentProject!,
-                      plannedEndDate: e.target.value,
-                    })
+                    handleFieldChange('plannedEndDate', e.target.value)
                   }
-                  className="w-full px-4 py-2.5 border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-400 transition-all"
+                  className={`w-full px-4 py-2.5 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/20 transition-all ${
+                    parseResult.plannedEndDate === 'parsed'
+                      ? 'border-2 border-emerald-300 bg-emerald-50/30 focus:border-emerald-500'
+                      : 'border border-slate-200 focus:border-blue-400'
+                  }`}
                 />
               </div>
             </div>

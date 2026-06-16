@@ -12,8 +12,7 @@ import {
   FileText,
   ArrowRight,
 } from 'lucide-react';
-import { projectTypes, mockCurrentProject } from '@/data/projectTypes';
-import { declarationSteps } from '@/data/declarationSteps';
+import { projectTypes } from '@/data/projectTypes';
 import { useProjectStore } from '@/store/projectStore';
 
 const iconMap: Record<string, React.ElementType> = {
@@ -25,7 +24,8 @@ const iconMap: Record<string, React.ElementType> = {
 
 export default function DeclarationPath() {
   const navigate = useNavigate();
-  const { currentProject, setCurrentProject } = useProjectStore();
+  const { currentProject, declarationSteps, stepsConfig, projectTypes, applyProjectType, setCurrentProject } =
+    useProjectStore();
   const [selectedType, setSelectedType] = useState<string | null>(
     currentProject?.type || null
   );
@@ -45,16 +45,13 @@ export default function DeclarationPath() {
 
   const handleGeneratePath = () => {
     if (selectedType && selectedCategory) {
-      setCurrentProject({
-        ...mockCurrentProject,
-        type: selectedType,
-        category: selectedCategory,
-      });
+      applyProjectType(selectedType, selectedCategory);
       setShowPath(true);
     }
   };
 
-  const selectedTypeData = projectTypes.find((t) => t.id === selectedType);
+  const selectedTypeData = projectTypes.find((t) => t.id === selectedType) ||
+    projectTypes.find((t) => t.id === currentProject?.type);
 
   const getStepStatusStyle = (status: string) => {
     switch (status) {
@@ -69,6 +66,14 @@ export default function DeclarationPath() {
 
   const getLineStyle = (status: string) => {
     return status === 'completed' ? 'bg-emerald-500' : 'bg-slate-200';
+  };
+
+  const totalDays = stepsConfig?.totalDays || 42;
+  const workDays = stepsConfig?.workDays || 25;
+  const materialStats = stepsConfig?.materialStats || {
+    completed: 8,
+    inProgress: 3,
+    notStarted: 7,
   };
 
   return (
@@ -282,37 +287,45 @@ export default function DeclarationPath() {
                 <div>
                   <span className="text-xs text-slate-400">项目名称</span>
                   <p className="text-sm font-medium text-slate-700">
-                    {currentProject?.name}
+                    {currentProject?.name || '未命名项目'}
                   </p>
                 </div>
                 <div>
                   <span className="text-xs text-slate-400">项目类型</span>
                   <p className="text-sm font-medium text-slate-700">
-                    {selectedTypeData?.name}
+                    {selectedTypeData?.name || '-'}
                   </p>
                 </div>
                 <div>
                   <span className="text-xs text-slate-400">工程类别</span>
                   <p className="text-sm font-medium text-slate-700">
-                    {currentProject?.category}
+                    {currentProject?.category || '-'}
                   </p>
                 </div>
                 <div>
                   <span className="text-xs text-slate-400">建设单位</span>
                   <p className="text-sm font-medium text-slate-700">
-                    {currentProject?.builder}
+                    {currentProject?.builder || '-'}
                   </p>
                 </div>
+                {currentProject?.address && (
+                  <div>
+                    <span className="text-xs text-slate-400">项目地址</span>
+                    <p className="text-sm font-medium text-slate-700">
+                      {currentProject.address}
+                    </p>
+                  </div>
+                )}
               </div>
             </div>
 
             <div className="bg-gradient-to-br from-blue-500 to-blue-700 rounded-2xl p-6 text-white">
               <h3 className="font-bold mb-2">预计总时长</h3>
-              <p className="text-3xl font-bold mb-1">42天</p>
-              <p className="text-sm text-blue-100">约 25 个工作日</p>
+              <p className="text-3xl font-bold mb-1">{totalDays}天</p>
+              <p className="text-sm text-blue-100">约 {workDays} 个工作日</p>
               <div className="mt-4 pt-4 border-t border-white/20">
                 <p className="text-xs text-blue-100">
-                  * 以上时间为参考，实际以各部门办理进度为准
+                  * 不同项目类型办理周期不同，以上为参考
                 </p>
               </div>
             </div>
@@ -320,26 +333,24 @@ export default function DeclarationPath() {
             <div className="bg-white rounded-2xl border border-slate-200 p-6">
               <h3 className="font-bold text-slate-800 mb-4">材料统计</h3>
               <div className="space-y-3">
-                {[
-                  { label: '已完成', count: 8, color: 'emerald' },
-                  { label: '进行中', count: 3, color: 'blue' },
-                  { label: '未开始', count: 7, color: 'slate' },
-                ].map((item) => (
-                  <div key={item.label} className="flex items-center justify-between">
-                    <span className="text-sm text-slate-600">{item.label}</span>
-                    <span
-                      className={`text-lg font-bold ${
-                        item.color === 'emerald'
-                          ? 'text-emerald-600'
-                          : item.color === 'blue'
-                          ? 'text-blue-600'
-                          : 'text-slate-400'
-                      }`}
-                    >
-                      {item.count} 项
-                    </span>
-                  </div>
-                ))}
+                <div key="completed" className="flex items-center justify-between">
+                  <span className="text-sm text-slate-600">已完成</span>
+                  <span className="text-lg font-bold text-emerald-600">
+                    {materialStats.completed} 项
+                  </span>
+                </div>
+                <div key="progress" className="flex items-center justify-between">
+                  <span className="text-sm text-slate-600">进行中</span>
+                  <span className="text-lg font-bold text-blue-600">
+                    {materialStats.inProgress} 项
+                  </span>
+                </div>
+                <div key="pending" className="flex items-center justify-between">
+                  <span className="text-sm text-slate-600">未开始</span>
+                  <span className="text-lg font-bold text-slate-400">
+                    {materialStats.notStarted} 项
+                  </span>
+                </div>
               </div>
             </div>
           </div>
